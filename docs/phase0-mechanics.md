@@ -11,7 +11,7 @@ Goal: load the metal facts before writing engine code.
   to establish exactly what this project is NOT rebuilding.
 - Read the concurrent/adjacent systems papers and extract each policy's exact
   scoring rule into notes. They are the related work and the baseline specs for
-  Phase 3b:
+  the benchmark's policy layer:
   - **Continuum (2511.02230)** — "KV Cache Time-to-Live": names the
     tool-call-gap eviction failure mode and proposes KV TTL. A bundled baseline
     (see `agentic-kv-bench/docs/policy-interface.md`).
