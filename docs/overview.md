@@ -50,6 +50,6 @@ them.
 
 ## Hardware
 
-The scratch engine runs on a cheap/consumer GPU with a 1B–8B model — model size
-is not the point, the engineering is. Phases 2 and 4 want an hourly A100/H100
-for measured numbers on real hardware.
+The scratch engine targets a single consumer-class GPU with a 1B–8B model —
+model size is not the point, the engineering is. Phases 2 and 4 use an
+A100/H100-class instance for measured numbers on datacenter hardware.

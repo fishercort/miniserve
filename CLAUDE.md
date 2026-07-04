@@ -9,4 +9,3 @@ Architecture is specced in docs/ — read before making design decisions:
 
 Build/test (uv-based): `uv run pytest`, `uv run ruff check`.
 Sibling repo: agentic-kv-bench (policy benchmark harness; depends on this engine, never the reverse).
-PRIVATE.md (gitignored) holds non-technical project strategy — not needed for engineering work.

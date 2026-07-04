@@ -151,6 +151,26 @@ The engine runs `step()` in a tight loop on a background thread/async task.
   the running decode in one step as above. Chunked prefill (cap prefill tokens
   per step to protect decode latency) is the nicer version, list it as a stretch.
 
+### Named failure modes (open design questions)
+
+Two scheduler-semantics decisions are deliberately left open until
+implementation; both are places a serving engineer will look first.
+
+- **Full-occupancy livelock.** Blocking admission protects the waiting queue,
+  but if every block is allocated and every running decode needs a new block,
+  `make_room` has nothing trivially evictable and v1 has no preemption — the
+  step loop can wedge. Candidate v1 answers: block and accept the wedge under
+  adversarial load; abort-and-requeue the youngest running sequence;
+  preempt-by-recompute (vLLM's answer). v1 policy: TBD — decided during
+  implementation.
+- **Admission headroom.** Admission reserves `ceil(len(prompt)/block_size)`
+  blocks — exactly the prompt, zero decode headroom. A prompt that fills its
+  last block needs a new block on the first generated token, so at high
+  occupancy admission feeds straight into the `make_room` path. Candidate v1
+  answers: admit at `need` (maximum utilization, earlier pressure) or `need + 1`
+  (one-token headroom, slightly lower utilization). v1 policy: TBD — decided
+  during implementation.
+
 ## API surface
 
 ```
@@ -167,8 +187,8 @@ GET /health
   { status, model, kv_blocks_total, kv_blocks_free }
 ```
 
-No HTML forms anywhere. Requests are async: they land in `waiting`, the loop
-picks them up, tokens stream back as produced.
+Requests are async: they land in `waiting`, the loop picks them up, tokens
+stream back as produced.
 
 ## Metrics (build in from day one, Phase 2 depends on them)
 
