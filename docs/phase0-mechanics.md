@@ -2,13 +2,13 @@
 
 Goal: load the metal facts before writing engine code.
 
-- Trace one forward pass end to end. Be able to explain prefill (compute-bound)
-  vs decode (memory-bandwidth-bound) mechanically, not at paper level.
+- Trace one forward pass end to end. The goal is a mechanical, not paper-level,
+  account of prefill (compute-bound) vs decode (memory-bandwidth-bound).
 - Compute KV cache size by hand for the target model:
   `num_layers x 2 x num_kv_heads x head_dim x dtype_bytes x seq_len`. Know the
   real bytes per token and per block.
 - Read PagedAttention and RadixAttention; skim Dynamo's KV router and KVBM docs
-  so you know exactly what you are NOT rebuilding.
+  to establish exactly what this project is NOT rebuilding.
 - Read the concurrent/adjacent systems papers and extract each policy's exact
   scoring rule into notes. They are the related work and the baseline specs for
   Phase 3b:

@@ -24,7 +24,7 @@ This is the structure Phase 3 later instruments, so build the seams now even
 though v1 does not use them.
 
 ```python
-# Physical storage: preallocate to fill your GPU memory budget.
+# Physical storage: preallocate to fill the GPU memory budget.
 # One pair (K, V) per layer. Shape per tensor:
 #   [num_blocks, block_size, num_kv_heads, head_dim]
 # block_size = tokens per block, e.g. 16.
@@ -108,7 +108,7 @@ def step():
     # 3. Forward pass. Paged attention reads K,V via each seq's block table.
     #    v1: gather KV blocks into a contiguous buffer per sequence, then run
     #    standard attention. Simpler and pure-PyTorch. Note the perf gap vs a
-    #    real paged kernel in your writeup. (Stretch: write a paged kernel.)
+    #    real paged kernel in the writeup. (Stretch: write a paged kernel.)
     logits = model.forward(prefill + decode, kv)
 
     # 4. Sample, append, grow KV
@@ -140,7 +140,7 @@ def step():
 The engine runs `step()` in a tight loop on a background thread/async task.
 `server.py` pushes new requests into `waiting` and streams emitted tokens back.
 
-### v1 simplifications (so you do not over-scope)
+### v1 simplifications (scope control)
 
 - Greedy or basic top-k/top-p sampling. Not the interesting part yet.
 - Single GPU, no tensor parallelism.
@@ -186,7 +186,7 @@ The result that shows why continuous batching matters.
 
 - Baseline: static batching. Wait to fill a fixed batch, run it to completion,
   then take the next batch.
-- Yours: continuous batching, the loop above.
+- This engine: continuous batching, the loop above.
 - Load: bursty Poisson arrivals with a spread of output lengths.
 - Result to show: under bursty load with mixed output lengths, continuous
   batching gives markedly higher throughput and lower p95 latency, because a
@@ -201,8 +201,8 @@ Explain the mechanism in the writeup, not just the numbers.
   leaves it trivial.
 - `BlockMeta` fields are reserved now, populated in Phase 3.
 - `recompute_cost` is filled by the Phase 2 cost model, which is itself derived
-  from the per-step prefill metrics you log here.
+  from the per-step prefill metrics logged here.
 
-Because you own this cache, every later decision (evict, migrate, recompute) is
-measurable rather than inferred from a black box. That is the whole reason the
-two-layer project hangs together.
+Because the engine owns this cache, every later decision (evict, migrate,
+recompute) is measurable rather than inferred from a black box. That is the
+whole reason the two-layer project hangs together.

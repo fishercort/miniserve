@@ -2,12 +2,12 @@
 
 Goal: ground every cost in measured hardware behavior — no magic constants.
 
-On your own engine, cross-checked on real hardware:
+Measured on the miniserve engine itself, cross-checked on real hardware:
 
 - Measure prefill latency as a function of prompt length; derive the
   compute-cost curve. (The per-step prefill metrics logged in Phase 1 are the
   raw data — this phase is mostly analysis, not new instrumentation.)
-- Compute KV block byte size for your model; measure transfer time for
+- Compute KV block byte size for the target model; measure transfer time for
   GPU ↔ CPU ↔ disk. Get real bandwidth numbers per tier.
 - Derive the migrate-vs-recompute crossover: at what prefix length does moving
   a cached block beat recomputing it, for each tier and interconnect?
