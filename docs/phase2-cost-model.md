@@ -11,6 +11,10 @@ Measured on the miniserve engine itself, cross-checked on real hardware:
   GPU ↔ CPU ↔ disk. Get real bandwidth numbers per tier.
 - Derive the migrate-vs-recompute crossover: at what prefix length does moving
   a cached block beat recomputing it, for each tier and interconnect?
+- Measure activation peak vs batch composition: MECHANICS.md assumes a
+  1.5–2 GiB overhead band, but activation memory scales with tokens in flight
+  per step (a large mixed prefill+decode batch peaks above steady-state
+  decode). Replace the assumption with a curve.
 - Validate predicted vs measured; report the error.
 
 **Deliverable:** a calibrated cost model with measured constants and plotted

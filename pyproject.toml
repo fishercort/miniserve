@@ -7,12 +7,15 @@ requires-python = ">=3.11"
 license = { file = "LICENSE" }
 # torch and transformers land with the first real code in model.py;
 # the scaffold stays light until then.
-dependencies = []
+dependencies = [
+    "torch>=2.12.1",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "torch>=2.12.1",
 ]
 
 [build-system]
