@@ -91,7 +91,7 @@ def step():
     while waiting and len(running) < max_batch:
         seq = waiting[0]
         need = ceil(len(seq.prompt_ids) / block_size)
-        if kv.free_count() < need:
+        if kv.free_count() < need + 1:   # need+1 headroom: admission implies progress
             break                      # no room, stop admitting this step
         waiting.popleft()
         kv.allocate(seq.req_id, need)
@@ -120,7 +120,7 @@ def step():
         s.output_ids.append(tok)
         if s.needs_new_block(block_size):
             if kv.free_count() == 0:
-                evictor.make_room(s)     # Phase 3 seam. v1: preempt or block.
+                evictor.make_room(s)     # Phase 3 seam. v1: abort-and-requeue youngest.
             kv.append_block(s.req_id)
 
     # 5. Retire finished, return their blocks
@@ -145,8 +145,9 @@ The engine runs `step()` in a tight loop on a background thread/async task.
 - Greedy or basic top-k/top-p sampling. Not the interesting part yet.
 - Single GPU, no tensor parallelism.
 - Gather-based attention rather than a custom paged kernel. Flag the tradeoff.
-- No preemption/swapping in v1. If `make_room` is hit, simplest is to block
-  admission. Preemption is a clean Phase 3 extension.
+- No swapping/offload in v1. Preemption exists in exactly one form —
+  abort-and-requeue-youngest when `make_room` is hit (see Named failure modes
+  below). Richer victim selection is the Phase 3 policy engine's job.
 - Prefill handling: simplest correct version processes the admitted prefill plus
   the running decode in one step as above. Chunked prefill (cap prefill tokens
   per step to protect decode latency) is the nicer version, list it as a stretch.
@@ -158,18 +159,36 @@ implementation; both are places a serving engineer will look first.
 
 - **Full-occupancy livelock.** Blocking admission protects the waiting queue,
   but if every block is allocated and every running decode needs a new block,
-  `make_room` has nothing trivially evictable and v1 has no preemption — the
-  step loop can wedge. Candidate v1 answers: block and accept the wedge under
+  `make_room` has nothing trivially evictable and without preemption, the step
+  loop could wedge. Candidate v1 answers: block and accept the wedge under
   adversarial load; abort-and-requeue the youngest running sequence;
-  preempt-by-recompute (vLLM's answer). v1 policy: TBD — decided during
-  implementation.
+  preempt-by-recompute (vLLM's answer).
+
+  v1 policy:
+  victim = two-tier youngest: youngest among sequences that have produced at
+  least one token (finish-what-you-started fairness, plus cheapest recompute —
+  and it preserves the admission-implies-progress invariant below); fallback,
+  when no running sequence has decoded yet (the all-fresh corner, where the
+  invariant is unsatisfiable and someone must die), youngest overall — tagged
+  with a distinct preemption reason code so the corner is visible in logs;
+  mechanism = abort-and-requeue to front of waiting, with a `preemptions_total`
+  counter and the admission-time capacity check (reject any request whose worst
+  case `ceil((len(prompt) + max_tokens) / block_size)` exceeds total blocks —
+  that's what makes the mechanism provably terminate);
+  framing = v1's hardcoded victim choice is the degenerate case of the Phase 3
+  policy engine
+
 - **Admission headroom.** Admission reserves `ceil(len(prompt)/block_size)`
   blocks — exactly the prompt, zero decode headroom. A prompt that fills its
   last block needs a new block on the first generated token, so at high
   occupancy admission feeds straight into the `make_room` path. Candidate v1
   answers: admit at `need` (maximum utilization, earlier pressure) or `need + 1`
-  (one-token headroom, slightly lower utilization). v1 policy: TBD — decided
-  during implementation.
+  (one-token headroom, slightly lower utilization).
+
+  v1 policy: need + 1, buying the invariant that every admitted sequence
+  completes at least one decode step before it can face preemption — admission
+  implies progress. (The all-fresh corner above is the one bounded exception,
+  and it carries its own reason code.)
 
 ## API surface
 
