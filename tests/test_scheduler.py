@@ -368,14 +368,18 @@ def test_step_metrics_recorded():  # behavior 21
 
 def test_recompute_tokens_metered_separately():  # behavior 29 (added: metrics gap)
     """A resumed prefill's tokens are recompute volume, not fresh prompt volume
-    — the split Phase 2's cost model and the benchmark's headline metric need."""
+    — the split Phase 2's cost model and the benchmark's headline metric need.
+    The volume must equal the victim's total_len() at resume exactly: prompt
+    plus every token generated before the preemption destroyed its KV."""
     sched, kv, _, _ = pressured_pair()
+    step_until(sched, kv, lambda: sched.preemptions_total >= 1)
+    victim_id = sched.preemption_log[0].req_id
+    victim = next(s for s in sched.waiting if s.req_id == victim_id)
+    expected = victim.total_len()  # frozen while WAITING: nothing generates
     run_all(sched, kv)
-    assert sched.preemptions_total >= 1
     recompute = [r for r in sched.metrics.steps if r.n_prefill_tokens_recompute > 0]
     assert recompute  # the resume was metered as recompute...
-    for rec in recompute:
-        assert rec.n_prefill_tokens_recompute > 2  # ...prompt AND generated tokens
+    assert recompute[0].n_prefill_tokens_recompute == expected  # ...all of it, exactly
 
 
 def test_request_metrics_include_preempted():  # behavior 22
