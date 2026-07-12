@@ -397,6 +397,22 @@ def test_request_metrics_include_preempted():  # behavior 22
         assert rec.ttft_s is not None and rec.completion_time is not None
 
 
+def test_duplicate_live_id_rejected_retired_id_reusable():
+    """Duplicate check is against LIVE state, not history: a second submit of
+    a waiting/running id is rejected (it would kill the engine at admission),
+    but a retired id is resubmittable, because callers reuse id schemes."""
+    sched, kv, _, finished = make({"a": [1, EOS]})
+    sched.submit("a", [7] * 4, max_tokens=2)
+    with pytest.raises(ValueError, match="already live"):
+        sched.submit("a", [7] * 4, max_tokens=2)
+    run_all(sched, kv)
+    assert finished == ["a"]
+    sched.model.scripts["a"] = [1, EOS]  # rearm the script for the reuse
+    sched.submit("a", [7] * 4, max_tokens=2)  # retired: accepted again
+    run_all(sched, kv)
+    assert finished == ["a", "a"]
+
+
 def test_submit_validation():  # behavior 27 (added during implementation)
     sched, kv, _, _ = make({})
     with pytest.raises(ValueError, match="empty prompt"):

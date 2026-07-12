@@ -234,6 +234,17 @@ implementation; both are places a serving engineer will look first.
   lifecycle, including clean termination of an in-flight stream at shutdown,
   is quarantined to integration tests.
 
+  Amendment (step 4 audit): /metrics and /health read counters directly from
+  handler threads. This is a scoped exception, not a violation: the line
+  exists to protect the allocator's mutation invariants, and read-only,
+  GIL-atomic snapshots (single field reads and len() calls, values allowed to
+  be torn across fields and stale) cannot touch those. Routing them through
+  the engine would also make observability depend on the engine loop being
+  healthy, which is backwards: a wedged engine is exactly when /metrics must
+  stay readable. The rule that keeps the carve-out safe: no iteration over
+  scheduler or cache collections from a handler thread, ever; a handler that
+  needs more than a counter goes through the engine.
+
 ## API surface
 
 ```

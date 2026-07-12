@@ -36,6 +36,10 @@ def make_server(
             self.wfile.write(body)
 
         def do_GET(self) -> None:
+            # Scoped exception to the message-passing rule (see the concurrency
+            # amendment in docs/phase1-engine.md): read-only GIL-atomic
+            # snapshots only. Single field reads and len() calls; NO iteration
+            # over scheduler or cache collections from this thread, ever.
             sched = engine.scheduler
             kv = sched.kv
             if self.path == "/health":
@@ -74,6 +78,9 @@ def make_server(
             except json.JSONDecodeError:
                 self._json(400, {"error": "invalid JSON"})
                 return
+            if not isinstance(body, dict):
+                self._json(400, {"error": "body must be a JSON object"})
+                return
 
             # Tokenize here, in the handler thread. Only ids cross the queue.
             if "prompt_ids" in body:
@@ -84,6 +91,9 @@ def make_server(
                     self._json(400, {"error": "prompt_ids must be a list of ints"})
                     return
             elif "prompt" in body and tokenizer is not None:
+                if not isinstance(body["prompt"], str):
+                    self._json(400, {"error": "prompt must be a string"})
+                    return
                 prompt_ids = tokenizer(body["prompt"])["input_ids"]
             else:
                 self._json(
@@ -92,10 +102,18 @@ def make_server(
                 )
                 return
 
-            sampling = SamplingParams(
-                temperature=float(body.get("temperature", 0.0)),
-                top_p=float(body.get("top_p", 1.0)),
-            )
+            try:
+                max_tokens = int(body.get("max_tokens", DEFAULT_MAX_TOKENS))
+                sampling = SamplingParams(
+                    temperature=float(body.get("temperature", 0.0)),
+                    top_p=float(body.get("top_p", 1.0)),
+                )
+            except (TypeError, ValueError):
+                self._json(
+                    400,
+                    {"error": "max_tokens, temperature, and top_p must be numbers"},
+                )
+                return
             # v1 is greedy-only. Accepting and silently ignoring sampling
             # params is the failure the golden tests caught in generate();
             # refuse instead of pretending.
@@ -106,9 +124,7 @@ def make_server(
                 )
                 return
             req_id = uuid.uuid4().hex[:12]
-            fut, stream = engine.submit(
-                req_id, prompt_ids, int(body.get("max_tokens", DEFAULT_MAX_TOKENS)), sampling
-            )
+            fut, stream = engine.submit(req_id, prompt_ids, max_tokens, sampling)
             try:
                 fut.result(timeout=submit_timeout_s)
             except (CapacityError, ValueError) as e:
@@ -116,6 +132,15 @@ def make_server(
                 return
             except EngineStopped as e:
                 self._json(503, {"error": str(e)})
+                return
+            except TimeoutError:
+                # The request stays queued and may still execute server-side;
+                # v1 has no cancel. Same honesty as the disconnect policy.
+                self._json(
+                    503,
+                    {"error": "admission timed out; the request may still execute "
+                              "server-side (no cancel in v1)"},
+                )
                 return
 
             self.send_response(200)
@@ -148,4 +173,10 @@ def make_server(
             except (BrokenPipeError, ConnectionResetError):
                 return  # client left; generation continues to retirement
 
-    return ThreadingHTTPServer((host, port), Handler)
+    server = ThreadingHTTPServer((host, port), Handler)
+    # A mid-stream handler must not hold the process open. Consequence: at
+    # process exit, mid-stream handlers die without their streams sentineling;
+    # that is the one exit path where "nothing hangs" is vacuously true (the
+    # process is gone, nobody is draining).
+    server.daemon_threads = True
+    return server

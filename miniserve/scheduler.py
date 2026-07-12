@@ -115,6 +115,13 @@ class Scheduler:
             raise ValueError("empty prompt")
         if max_tokens < 1:
             raise ValueError("max_tokens must be >= 1")
+        # Duplicate check is against LIVE state only: a retired req_id is
+        # resubmittable (callers reuse id schemes across runs). A duplicate
+        # reaching admission would raise inside step() and kill the engine.
+        if any(s.req_id == req_id for s in self.waiting) or any(
+            s.req_id == req_id for s in self.running
+        ):
+            raise ValueError(f"request {req_id!r} is already live (waiting or running)")
         worst = self._blocks_for(len(prompt_ids) + max_tokens)
         if worst > self.kv.num_blocks:
             raise CapacityError(

@@ -175,6 +175,70 @@ def test_prompt_ids_validated_at_boundary(rig):
     conn.close()
 
 
+def test_body_not_object_is_400(rig):
+    host, port = rig
+    from http.client import HTTPConnection
+
+    conn = HTTPConnection(host, port, timeout=10)
+    conn.request("POST", "/generate", json.dumps([1, 2, 3]))
+    resp = conn.getresponse()
+    assert resp.status == 400
+    assert "JSON object" in json.loads(resp.read())["error"]
+    conn.close()
+
+
+def test_bad_numeric_fields_are_400(rig):
+    host, port = rig
+    for bad in (
+        {"prompt_ids": [7], "max_tokens": "abc"},
+        {"prompt_ids": [7], "max_tokens": 2, "temperature": "hot"},
+        {"prompt_ids": [7], "max_tokens": 2, "top_p": None},
+    ):
+        conn, resp = post_generate(host, port, bad)
+        assert resp.status == 400, bad
+        assert "must be numbers" in json.loads(resp.read())["error"]
+        conn.close()
+
+
+def test_prompt_non_string_is_400():
+    """Needs a tokenizer configured so the prompt path is reachable."""
+    kv = PagedKVCache(1, 16, BS, 1, 2, poison_on_free=True)
+    sched = Scheduler(kv, AnyModel(), max_batch=4, eos_id=0)
+    engine = Engine(sched, idle_wait_s=0.005)
+    server = make_server(engine, port=0, tokenizer=lambda s: {"input_ids": [1, 2]})
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    engine.start()
+    host, port = server.server_address[:2]
+    try:
+        conn, resp = post_generate(host, port, {"prompt": 123, "max_tokens": 2})
+        assert resp.status == 400
+        assert "must be a string" in json.loads(resp.read())["error"]
+        conn.close()
+    finally:
+        server.shutdown()
+        engine.stop()
+
+
+def test_admission_timeout_is_503_and_says_no_cancel():
+    """Engine never started: the future cannot resolve, so the handler's
+    blocking wait must time out into a 503 that keeps the no-cancel policy
+    honest on this surface too."""
+    kv = PagedKVCache(1, 16, BS, 1, 2, poison_on_free=True)
+    sched = Scheduler(kv, AnyModel(), max_batch=4, eos_id=0)
+    engine = Engine(sched, idle_wait_s=0.005)
+    server = make_server(engine, port=0, submit_timeout_s=0.05)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    host, port = server.server_address[:2]
+    try:
+        conn, resp = post_generate(host, port, {"prompt_ids": [7], "max_tokens": 1})
+        assert resp.status == 503
+        assert "may still execute" in json.loads(resp.read())["error"]
+        conn.close()
+    finally:
+        server.shutdown()
+        engine.stop()
+
+
 def test_metrics_after_traffic(rig):
     host, port = rig
     conn, resp = post_generate(host, port, {"prompt_ids": [7, 7], "max_tokens": 2})

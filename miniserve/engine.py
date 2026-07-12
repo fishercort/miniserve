@@ -46,6 +46,11 @@ class Engine:
 
     Nothing hangs, period: shutdown and engine-thread crashes both resolve
     every pending future and deliver a terminal sentinel to every live stream.
+    Refusal paths sentinel too, so the stream contract is unconditional:
+    every stream submit() ever returns terminates with exactly one FINISH.
+
+    Engine takes ownership of scheduler.on_token and scheduler.on_finish; any
+    callbacks set before construction are replaced.
     """
 
     def __init__(self, scheduler: Scheduler, idle_wait_s: float = 0.01) -> None:
@@ -82,17 +87,41 @@ class Engine:
         or raises; CapacityError/ValueError cross the thread boundary as the
         same exception type and message. The stream yields ("token", id)
         tuples then exactly one ("finish", FinishSummary).
+
+        The stream's sentinel only guarantees termination; it does not carry
+        the cause. A rejected-at-the-door request and a crash-aborted request
+        that produced nothing both sentinel with aborted=True and zero tokens.
+        Check the future to tell them apart.
         """
         fut: Future = Future()
         stream: queue.Queue = queue.Queue()
         with self._doorway:
             if self._stop.is_set():
                 fut.set_exception(EngineStopped("engine stopped"))
+                self._refusal_sentinel(req_id, stream)
                 return fut, stream
             self._submissions.put(
                 (req_id, list(prompt_ids), max_tokens, sampling, fut, stream)
             )
         return fut, stream
+
+    @staticmethod
+    def _refusal_sentinel(req_id: str, stream: queue.Queue) -> None:
+        """Refused requests still terminate their stream: the contract is
+        unconditional, not a tendency."""
+        stream.put(
+            (
+                FINISH,
+                FinishSummary(
+                    req_id=req_id,
+                    output_tokens=0,
+                    ttft_ms=None,
+                    total_ms=None,
+                    throughput_tok_s=None,
+                    aborted=True,
+                ),
+            )
+        )
 
     def start(self) -> None:
         self._thread = threading.Thread(
@@ -148,6 +177,7 @@ class Engine:
             self.scheduler.submit(req_id, prompt_ids, max_tokens, sampling)
         except ValueError as e:  # CapacityError included: crosses boundary intact
             fut.set_exception(e)
+            self._refusal_sentinel(req_id, stream)
             return
         self._streams[req_id] = stream
         fut.set_result(req_id)

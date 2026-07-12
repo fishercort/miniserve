@@ -131,6 +131,29 @@ def test_validation_error_crosses_boundary():
         fut.result(timeout=0)
 
 
+def test_refused_stream_still_terminates():
+    """The stream contract is unconditional: even a stopped-engine refusal
+    delivers the aborted sentinel, so no caller pattern can hang on a stream."""
+    engine, _ = make_engine(AnyModel())
+    engine.stop()  # never started: sets the event, nothing to join
+    fut, stream = engine.submit("late", [7], max_tokens=1)
+    with pytest.raises(EngineStopped):
+        fut.result(timeout=0)
+    kind, summary = stream.get(timeout=0.1)
+    assert kind == FINISH and summary.aborted is True and summary.output_tokens == 0
+
+
+def test_rejected_admission_stream_terminates():
+    """Capacity rejection resolves the future AND sentinels the stream."""
+    engine, _ = make_engine(AnyModel(), num_blocks=2)
+    fut, stream = engine.submit("big", [7] * 6, max_tokens=8)
+    engine.step_once()
+    with pytest.raises(CapacityError):
+        fut.result(timeout=0)
+    kind, summary = stream.get(timeout=0.1)
+    assert kind == FINISH and summary.aborted is True
+
+
 # -- integration trio (real thread) --------------------------------------------
 
 
