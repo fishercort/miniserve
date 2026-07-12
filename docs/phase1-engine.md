@@ -258,6 +258,16 @@ The result that shows why continuous batching matters.
 
 Explain the mechanism in the writeup, not just the numbers.
 
+Scope of the claim, stated before the numbers exist: v1's forward processes
+sequences one at a time, so batching exists at the scheduling layer (shared
+step cadence, shared admission, iteration-level composition) and not at the
+compute layer (no shared matmuls — weights are not read once and applied
+across N sequences). The benchmark can therefore demonstrate scheduling wins —
+throughput and p95 TTFT under bursty load, queue behavior, preemption cost —
+and cannot demonstrate the memory-bandwidth throughput win that compute-layer
+batching is famous for. Compute-layer batching is the flagged v2 extension;
+naming this boundary here is what keeps the chart honest.
+
 ## How this feeds the later phases (the coherence thread)
 
 - The `Evictor` seam in `make_room` is where Phase 3's policy plugs in. v1

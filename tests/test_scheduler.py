@@ -265,6 +265,11 @@ def test_beneficiary_gets_block_same_step():  # behavior 23
 
 
 def test_resume_not_restart_byte_identical():  # behaviors 15, 16
+    """PAIR COVERAGE: proves the scheduler's real preempt→readmit path yields a
+    correct resume at the token-stream level; that the MODEL's forward treats
+    such a resumed state correctly (RoPE positions × mask) is proven by
+    test_model.test_resumed_prefill_equals_fresh_prefill. Complete only as a
+    pair — do not delete either believing the other covers it."""
     sched, kv, tokens, finished = pressured_pair()
     run_all(sched, kv)
     assert sched.preemptions_total >= 1  # pressure actually happened
