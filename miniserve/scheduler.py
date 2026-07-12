@@ -142,11 +142,18 @@ class Scheduler:
 
     # -- the step loop --------------------------------------------------------
 
+    def _admission_open(self) -> bool:
+        """Admission-policy hook, evaluated once per step. Continuous batching
+        is always open; the static baseline in bench/ overrides this. The hook
+        is the ONLY difference between the two benchmark arms."""
+        return True
+
     def step(self) -> None:
         t_start = self.clock()
 
         # 1. Admission: strict FIFO — a head that does not fit blocks the queue.
-        while self.waiting and len(self.running) < self.max_batch:
+        admission_open = self._admission_open()
+        while admission_open and self.waiting and len(self.running) < self.max_batch:
             seq = self.waiting[0]
             # Progress headroom: room for current content plus one token — the
             # exact form of the need+1 rule ("admission implies progress").

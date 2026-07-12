@@ -303,6 +303,15 @@ The result that shows why continuous batching matters.
   batching gives markedly higher throughput and lower p95 latency, because a
   short sequence finishing does not have to wait for the longest one in its
   batch. Plot throughput and p95 TTFT vs arrival rate for both.
+- Measurement rules: TTFT and latency are measured client-side by the load
+  generator (server-side stamps quantize to step boundaries and would flatter
+  TTFT). The two arms differ only in the scheduler's admission hook. Spec
+  targets, harness reports realized values: burst profile, output lengths,
+  and driver schedule lag are reported as observed, not assumed. Client-side
+  timestamps include collector-thread wakeup latency, which biases against
+  the continuous arm (it runs more concurrent streams); the bias is
+  conservative with respect to the expected result and is named here so the
+  TTFT floor is explained before it is asked about.
 
 Explain the mechanism in the writeup, not just the numbers.
 
