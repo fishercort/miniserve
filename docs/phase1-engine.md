@@ -137,8 +137,9 @@ def step():
     )
 ```
 
-The engine runs `step()` in a tight loop on a background thread/async task.
-`server.py` pushes new requests into `waiting` and streams emitted tokens back.
+The engine runs `step()` in a tight loop on a dedicated engine thread.
+`server.py` communicates with it only by message passing; see the concurrency
+model decision in Named failure modes.
 
 ### v1 simplifications (scope control)
 
@@ -214,6 +215,25 @@ implementation; both are places a serving engineer will look first.
   policy with a starvation risk for large requests; it deserves the Phase 3
   cost-aware treatment, and FIFO-strict is one sentence to defend.
 
+- **Concurrency model.** The engine loop and the HTTP server need a boundary;
+  the allocator is guard-then-mutate and documented single-threaded.
+
+  v1 policy: the engine runs on a dedicated thread that exclusively owns the
+  scheduler and KV cache; the HTTP server communicates only by message passing
+  (a submission queue in, per-request token queues out, futures for capacity
+  rejections). The allocator's single-threaded assumption holds because no
+  other thread can reach the scheduler, not because callers promise to behave.
+  What crosses the queue is token ids, never text: tokenization happens in
+  the HTTP handler thread, so a long prompt cannot stall running decodes.
+  Queues are unbounded in v1: a slow SSE client grows its token queue without
+  limit; accepted and documented (bounding it is a resource-eviction policy,
+  which is Phase 3's shape of problem). Cost accepted: capacity rejections
+  resolve at the next step boundary rather than synchronously, and the
+  CapacityError must cross the thread boundary as the same exception type and
+  message. Tests drive step() directly and stay deterministic; thread
+  lifecycle, including clean termination of an in-flight stream at shutdown,
+  is quarantined to integration tests.
+
 ## API surface
 
 ```
@@ -240,6 +260,15 @@ does apply them: a shipped `repetition_penalty` modifies logits even under
 `do_sample=False`, which is why the golden tests neutralize it with a bare
 `GenerationConfig`. Supporting `repetition_penalty` as a request parameter
 would be a new API feature.
+
+Two more v1 API decisions:
+- Greedy only: requests with temperature != 0 or top_p != 1 are rejected with
+  a 400. Accepting and silently ignoring sampling parameters is the same
+  failure the golden tests caught in generate(); v1 refuses instead.
+- No cancel on disconnect: if the client hangs up mid-stream, the server
+  stops writing but the sequence completes and its blocks free at natural
+  retirement. Client-initiated abort is a flagged extension (a new scheduler
+  operation). Default max_tokens is 128 when omitted; /health reports it.
 
 ## Metrics (build in from day one, Phase 2 depends on them)
 
