@@ -303,6 +303,15 @@ The result that shows why continuous batching matters.
   batching gives markedly higher throughput and lower p95 latency, because a
   short sequence finishing does not have to wait for the longest one in its
   batch. Plot throughput and p95 TTFT vs arrival rate for both.
+- Baseline strength: static is given its best timeout (max_wait 0, it never
+  fill-waits; a batch forms from whatever is queued when the previous batch
+  retires). The measured gap is therefore run-to-completion slot waste only,
+  not wait-to-fill idling. Both arms share the same max_batch, so the
+  parallelism ceiling is identical and only admission differs; a single
+  static cell at double max_batch checks the result is not a ceiling
+  artifact. Mechanism runs use a flat-cost fake model (a step costs the same
+  regardless of batch composition): batching is free, which is the GPU
+  serving regime and is stated in the chart caption.
 - Measurement rules: TTFT and latency are measured client-side by the load
   generator (server-side stamps quantize to step boundaries and would flatter
   TTFT). The two arms differ only in the scheduler's admission hook. Spec
