@@ -233,6 +233,14 @@ GET /health
 Requests are async: they land in `waiting`, the loop picks them up, tokens
 stream back as produced.
 
+Sampling parameters come from the request and are executed exactly. The
+checkpoint's `generation_config.json` is deliberately ignored — its defaults
+are client-side suggestions, not model contract. Note that HF `generate()`
+does apply them: a shipped `repetition_penalty` modifies logits even under
+`do_sample=False`, which is why the golden tests neutralize it with a bare
+`GenerationConfig`. Supporting `repetition_penalty` as a request parameter
+would be a new API feature.
+
 ## Metrics (build in from day one, Phase 2 depends on them)
 
 Per request: arrival, first-token, completion times; prompt length; output
