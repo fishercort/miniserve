@@ -90,9 +90,9 @@ def step():
     # 1. Admission: pull from waiting while blocks are available
     while waiting and len(running) < max_batch:
         seq = waiting[0]
-        need = ceil(len(seq.prompt_ids) / block_size)
-        if kv.free_count() < need + 1:   # need+1 headroom: admission implies progress
-            break                      # no room, stop admitting this step
+        need = ceil(seq.total_len() / block_size)   # resume: prompt + generated
+        if kv.free_count() < ceil((seq.total_len() + 1) / block_size):
+            break   # exact-form progress headroom; see Named failure modes
         waiting.popleft()
         kv.allocate(seq.req_id, need)
         seq.status = PREFILL
@@ -167,10 +167,18 @@ implementation; both are places a serving engineer will look first.
   v1 policy:
   victim = two-tier youngest: youngest among sequences that have produced at
   least one token (finish-what-you-started fairness, plus cheapest recompute —
-  and it preserves the admission-implies-progress invariant below); fallback,
+  and it preserves the admission-implies-progress invariant below). A first
+  token sampled earlier in the same step counts, and the requester itself is
+  not excluded — self-preemption is legal: the invariant is already satisfied,
+  the resume path already exists, and a special-case wait path is extra code
+  for a corner the capacity check already bounds. Fallback,
   when no running sequence has decoded yet (the all-fresh corner, where the
   invariant is unsatisfiable and someone must die), youngest overall — tagged
-  with a distinct preemption reason code so the corner is visible in logs;
+  with a distinct preemption reason code so the corner is visible in logs.
+  (Traced after implementation: the fallback is unreachable through step()
+  itself — the requester has always just sampled a token, so the first tier is
+  never empty. It is kept as a defensive tier, unit-tested directly, for
+  whatever calls make_room in Phase 3.);
   mechanism = abort-and-requeue to front of waiting, with a `preemptions_total`
   counter and the admission-time capacity check (reject any request whose worst
   case `ceil((len(prompt) + max_tokens) / block_size)` exceeds total blocks —
@@ -185,10 +193,26 @@ implementation; both are places a serving engineer will look first.
   answers: admit at `need` (maximum utilization, earlier pressure) or `need + 1`
   (one-token headroom, slightly lower utilization).
 
-  v1 policy: need + 1, buying the invariant that every admitted sequence
+  v1 policy: exact-form headroom — admit when the free blocks cover the current
+  content plus one token, `ceil((total_len + 1) / block_size)`. That equals
+  need + 1 only when the content exactly fills its last block, and plain need
+  otherwise. Same invariant, precise arithmetic: every admitted sequence
   completes at least one decode step before it can face preemption — admission
-  implies progress. (The all-fresh corner above is the one bounded exception,
-  and it carries its own reason code.)
+  implies progress. The exact form matters at the boundary: flat need + 1
+  demands a block that can never exist for a request sized to the whole cache,
+  so a preempted near-whole-cache sequence could never re-admit — permanently
+  stranding the very sequence the capacity check promised would terminate.
+  (Amended from the original need + 1 wording when implementation found that
+  hole; the all-fresh corner above remains the one bounded exception to the
+  invariant, and it carries its own reason code.)
+
+- **Head-of-line blocking.** When the head of the waiting queue does not fit
+  but a smaller sequence behind it would, admission could hold the line or
+  skip ahead.
+
+  v1 policy: strict FIFO — the head blocks the queue. Skip-ahead is a fairness
+  policy with a starvation risk for large requests; it deserves the Phase 3
+  cost-aware treatment, and FIFO-strict is one sentence to defend.
 
 ## API surface
 
