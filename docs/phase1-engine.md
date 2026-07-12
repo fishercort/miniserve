@@ -187,6 +187,13 @@ implementation; both are places a serving engineer will look first.
   framing = v1's hardcoded victim choice is the degenerate case of the Phase 3
   policy engine
 
+  Measured (mechanism sweep, pressure ablation): under the same memory
+  pressure, continuous batching preempts about three times as often as static
+  (43-45 vs 12-18 events per run) and still wins both metrics (140 vs 88
+  tok/s, p95 TTFT 9 s vs 18 s). The scheduler spends preemptions freely and
+  profits, which is the empirical case that abort-and-requeue was the right
+  v1 mechanism: cheap enough to use, not just correct enough to pass tests.
+
 - **Admission headroom.** Admission reserves `ceil(len(prompt)/block_size)`
   blocks — exactly the prompt, zero decode headroom. A prompt that fills its
   last block needs a new block on the first generated token, so at high

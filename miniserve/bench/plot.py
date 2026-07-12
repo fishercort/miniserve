@@ -39,7 +39,9 @@ def main(argv=None) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    rows = [r for r in load_rows(args.inp) if r["cell"] == "main"]
+    all_rows = load_rows(args.inp)
+    rows = [r for r in all_rows if r["cell"] == "main"]
+    n16 = [r for r in all_rows if r["cell"] == "n16"]
     bad = [r for r in rows if not r["valid_for_chart"]]
     if bad:
         raise SystemExit(
@@ -94,6 +96,21 @@ def main(argv=None) -> None:
             ax.spines[spine].set_color(BASELINE)
         ax.margins(x=0.06)
         ax.legend(frameon=False, labelcolor=INK_2, fontsize=9, loc="upper left")
+        # Ceiling-robustness marker: static at double max_batch. On the figure
+        # so the "just raise static's batch size" objection meets its answer
+        # where the eye is, not in a results file nobody opens.
+        if key == "throughput_tok_s" and n16:
+            n16_rate = n16[0]["rate_rps"]
+            n16_mean = sum(r[key] for r in n16) / len(n16)
+            ax.plot(
+                [n16_rate], [n16_mean], marker="x", markersize=9,
+                markeredgewidth=2.2, color=SERIES["static"], linestyle="none",
+            )
+            ax.annotate(
+                f"static, N={n16[0]['config']['max_batch']}",
+                (n16_rate, n16_mean), xytext=(6, 6),
+                textcoords="offset points", color=SERIES["static"], fontsize=8.5,
+            )
 
     fig.suptitle(
         "Continuous vs static batching under bursty Poisson load",
@@ -105,14 +122,20 @@ def main(argv=None) -> None:
         (
             f"Flat-cost fake model ({cfg['delay_s'] * 1000:.0f} ms/step): batching is "
             "free, the GPU regime. Static gets its best timeout (W=0, never "
-            "fill-waits): the gap is run-to-completion slot waste only.\n"
-            f"{cfg['n_requests']} requests/cell, burst factor "
+            "fill-waits): the gap is run-to-completion slot waste only. "
+            f"{cfg['n_requests']} requests/cell,\nburst factor "
             f"{cfg['burst_factor']}, max_batch {cfg['max_batch']}, 3 seeds; band = "
-            "min-max across seeds. All cells preemption-free; driver lag in results."
+            "min-max across seeds. All cells preemption-free; driver lag in results. "
+            "Left-edge TTFT gap is mechanism, not bias: long-tail outputs\n"
+            "(up to 2.6 s of batch occupancy) overlap 2 s mean arrival gaps, so "
+            "arrivals collide with running batches even at 0.5 rps. Continuous "
+            "saturates at 280 of the 400 tok/s ceiling:\nmean batch occupancy "
+            "6.5/8 overall but 8.0/8 in the middle third (results/occupancy.txt); "
+            "the gap is ramp-in and drain-tail of the finite run, not steady state."
         ),
         color=INK_2, fontsize=7.5, va="bottom",
     )
-    fig.tight_layout(rect=(0, 0.07, 1, 0.95))
+    fig.tight_layout(rect=(0, 0.12, 1, 0.95))
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150, facecolor=SURFACE)
