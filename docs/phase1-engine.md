@@ -201,18 +201,19 @@ implementation; both are places a serving engineer will look first.
   answers: admit at `need` (maximum utilization, earlier pressure) or `need + 1`
   (one-token headroom, slightly lower utilization).
 
-  v1 policy: exact-form headroom — admit when the free blocks cover the current
-  content plus one token, `ceil((total_len + 1) / block_size)`. That equals
-  need + 1 only when the content exactly fills its last block, and plain need
-  otherwise. Same invariant, precise arithmetic: every admitted sequence
-  completes at least one decode step before it can face preemption — admission
-  implies progress. The exact form matters at the boundary: flat need + 1
-  demands a block that can never exist for a request sized to the whole cache,
-  so a preempted near-whole-cache sequence could never re-admit — permanently
-  stranding the very sequence the capacity check promised would terminate.
-  (Amended from the original need + 1 wording when implementation found that
-  hole; the all-fresh corner above remains the one bounded exception to the
-  invariant, and it carries its own reason code.)
+  v1 policy: admission needs enough free blocks to cover the request's current
+  content plus one token, i.e. `ceil((total_len + 1) / block_size)`; for a
+  resumed request, content means prompt plus everything generated before
+  preemption. That equals need + 1 blocks only when the content exactly fills
+  its last block; otherwise it is just need. The extra token's room guarantees
+  every admitted sequence completes at least one decode step before it can
+  face preemption: admission implies progress. The exact form matters at the
+  boundary: flat need + 1 strands a whole-cache-sized request at re-admission,
+  demanding a block the cache does not contain and breaking the termination
+  promise the capacity check made, with the stranded head then blocking the
+  strict-FIFO queue behind it. Amended from the original need + 1 wording when
+  implementation found that hole. (The all-fresh corner above remains the one
+  bounded exception, with its own reason code.)
 
 - **Head-of-line blocking.** When the head of the waiting queue does not fit
   but a smaller sequence behind it would, admission could hold the line or
