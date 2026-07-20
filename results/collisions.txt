@@ -1,0 +1,18 @@
+Collision measurement at 0.5 rps, static arm, 3 seeds.
+Produced by: uv run python -m miniserve.bench.collision_check
+Definitions (also in that module's docstring): collided = client-side TTFT
+> 0.1 s (open-window TTFT is ~2 steps, 40-60 ms incl collector wakeup; the
+TTFT distribution is bimodal and 0.1 s sits in the gap). Mean service =
+realized output tokens x 20 ms step (cap == realized under the EOS-free fake
+model). Busy fraction = sum of step latencies / makespan.
+Realized mean output at these seeds: 43 tokens (nominal mix expectation ~39;
+spec targets, harness reports realized).
+
+seed 0: 39/60 collided (65%)
+seed 1: 30/60 collided (50%)
+seed 2: 31/60 collided (52%)
+
+mean service time: 0.86s
+utilization arithmetic (0.5 rps x 0.86s): 0.43
+measured busy fraction of wall clock: 0.29
+MEASURED COLLISION FRACTION: 100/180 = 56%
