@@ -58,3 +58,24 @@ def test_fit_prefers_quadratic_when_it_earns_it():
     assert fits["preferred"] == "quadratic"
     assert abs(fits["quadratic"]["c_ms_per_token2"] - 0.01) < 1e-6
     assert fits["fit_acceptable"] is True
+    assert fits["residual_structure"] is False
+
+
+def test_gate_rejects_saturation_knee():
+    """The negative case is the whole point of a gate: a piecewise curve
+    (linear, then a sharp knee, the shape a real GPU produces at saturation)
+    must not be accepted, and the gate must say which failure mode fired."""
+
+    def knee(n: int) -> float:
+        if n <= 256:
+            return 2.0 + 0.05 * n
+        return 2.0 + 0.05 * 256 + 1.5 * (n - 256)
+
+    records = [
+        {"prompt_tokens": n, "prefill_ms": knee(n)}
+        for n in (16, 32, 64, 128, 256, 512, 1024, 2048)
+    ]
+    fits = fit_curves(records)
+    assert fits["fit_acceptable"] is False
+    preferred_err = fits[fits["preferred"]]["mean_rel_err"]
+    assert preferred_err > fits["fit_gate_rel_err"] or fits["residual_structure"]

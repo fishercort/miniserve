@@ -46,9 +46,13 @@ governs; scripts implement.
   (timing noise is one-sided; interference only adds).
 - Fits: linear and quadratic, both reported with mean relative error.
   Preferred form is quadratic only when it beats linear by 20 percent or
-  more on residuals. Acceptance gate, numeric: the preferred fit's mean
-  relative error must be at or below 5 percent across the grid; otherwise
-  the grid is densified and refit before any downstream use.
+  more on residuals. Acceptance gate, numeric, two failure modes: (a) the
+  preferred fit's mean relative error must be at or below 5 percent across
+  the grid, and (b) residuals must be structureless: a run of four or more
+  consecutive same-sign residuals (each beyond 1 percent) marks the fit
+  structured and unacceptable, because a saturation knee can hide under a
+  passing mean error. Either failure means the grid is densified and refit
+  (or the form revisited) before any downstream use.
 
 ### 2. Curve B: decode step latency vs (batch size, context length)
 
@@ -86,10 +90,19 @@ required before the run counts.
 ### 5. Crossover derivation and validation
 
 From curves A and C, derive L* per tier: the prefix length where migrating
-cached blocks costs the same as recomputing them. Spot-validation: at 0.5x,
-1x, and 2x L*, measure both paths end to end. Contract, pre-committed: the
+cached blocks costs the same as recomputing them. The point alone can be
+numerically meaningless (near-parallel cost lines put it anywhere), so the
+config also emits the crossover BAND: the range where the two costs are
+within 25 percent of each other. Policies treat the band as the soft
+boundary; a wide band is itself a finding. Spot-validation targets the band,
+not just the point: per tier, measure both paths at the band's lower edge,
+the crossover, and the band's upper edge. Contract, pre-committed: the
 model's predictions must land within 25 percent of measurement at 2 of 3
 points per tier, or the cost model is revised before Phase 3 inherits it.
+Transfer tiers are DIRECTIONAL (gpu_to_cpu and cpu_to_gpu are separate
+entries; disk read and write likewise), and one-way vs round-trip pricing is
+named in the consumption module, because the offload decision pays down plus
+up against recompute's zero.
 
 ### 6. Hardware rule and emitted config
 

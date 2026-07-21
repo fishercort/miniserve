@@ -93,6 +93,23 @@ def measure_prefill(
     return records
 
 
+def _residual_structure(y, pred) -> bool:
+    """Plan section 1, failure mode (b): four or more consecutive same-sign
+    residuals (each beyond 1 percent) means structure, e.g. a saturation
+    knee hiding under a passing mean error."""
+    run_sign, run_len = 0, 0
+    for actual, fitted in zip(y, pred, strict=True):
+        rel = (fitted - actual) / actual
+        sign = 0 if abs(rel) < 0.01 else (1 if rel > 0 else -1)
+        if sign != 0 and sign == run_sign:
+            run_len += 1
+        else:
+            run_sign, run_len = sign, (1 if sign != 0 else 0)
+        if run_len >= 4:
+            return True
+    return False
+
+
 def fit_curves(records: list[dict]) -> dict:
     import numpy as np
 
@@ -113,6 +130,8 @@ def fit_curves(records: list[dict]) -> dict:
     quad_err = rel_err(np.polyval(quad, x))
     preferred = "quadratic" if quad_err < 0.8 * lin_err else "linear"
     preferred_err = quad_err if preferred == "quadratic" else lin_err
+    preferred_pred = np.polyval(quad if preferred == "quadratic" else lin, x)
+    structured = _residual_structure(y, preferred_pred)
     return {
         "lengths": lengths,
         "median_prefill_ms": medians,
@@ -128,10 +147,12 @@ def fit_curves(records: list[dict]) -> dict:
             "mean_rel_err": quad_err,
         },
         "preferred": preferred,
-        # Plan section 1 acceptance gate: below the threshold or the grid
-        # gets densified and refit before any downstream use.
+        # Plan section 1 acceptance gate, both failure modes: mean error
+        # threshold AND structureless residuals. Either failure means the
+        # grid is densified and refit before any downstream use.
         "fit_gate_rel_err": FIT_GATE_REL_ERR,
-        "fit_acceptable": preferred_err <= FIT_GATE_REL_ERR,
+        "residual_structure": structured,
+        "fit_acceptable": preferred_err <= FIT_GATE_REL_ERR and not structured,
     }
 
 
