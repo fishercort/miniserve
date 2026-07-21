@@ -21,6 +21,17 @@ from miniserve.scheduler import Scheduler
 FIT_GATE_REL_ERR = 0.05  # plan section 1: preferred fit must beat this
 
 
+def device_sync(device: str) -> None:
+    """THE sync primitive (plan section 4). Every timed region in curves A,
+    B, and C ends through this function; no curve grows its own sync."""
+    import torch
+
+    if device.startswith("cuda"):
+        torch.cuda.synchronize()
+    elif device == "mps":
+        torch.mps.synchronize()
+
+
 class _SyncedForward:
     """Wraps a model so the device sync lands INSIDE the timed step (plan
     section 4: timing never relies on the sampling .item() sync)."""
@@ -30,13 +41,8 @@ class _SyncedForward:
         self.device = device
 
     def forward(self, seqs, kv):
-        import torch
-
         out = self.inner.forward(seqs, kv)
-        if self.device.startswith("cuda"):
-            torch.cuda.synchronize()
-        elif self.device == "mps":
-            torch.mps.synchronize()
+        device_sync(self.device)
         return out
 
 

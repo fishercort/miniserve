@@ -78,6 +78,18 @@ governs; scripts implement.
   This clause exists because a disk number that is secretly a RAM number
   mis-prices the migrate-vs-recompute boundary exactly where recompute most
   plausibly wins.
+- Scattered-transfer caveat, structural: these tiers measure CONTIGUOUS
+  copies, but a prefix's KV is num_layers x 2 separate tensors (56 regions
+  for the target model) sliced at block granularity. Many small copies pay
+  many launch-and-sync overheads, so measured bandwidth is an upper bound on
+  achievable migration bandwidth and the crossover's migrate-favorable edge
+  is optimistic. Production engines close the gap with staging buffers
+  (gather scattered KV into one region, one fat copy); small-transfer
+  overhead, not raw bandwidth, is what historically pushed swap-vs-recompute
+  toward recompute for short sequences. The emitted config carries
+  transfer_measurement: "contiguous", and the GPU-day batch includes a
+  chunked-copy probe (same bytes, N discrete copies, N swept) that measures
+  the overhead directly and turns this caveat into a coefficient.
 
 ### 4. Sync policy
 
@@ -126,6 +138,8 @@ up against recompute's zero.
 The prefill probe script preceded this plan; its protocol block was written
 first and generalized here. Recorded once, not repeated: all subsequent
 scripts are written against this plan. Budget: one GPU day, batched: curves
-A through C, the activation-peak-vs-batch-composition measurement, and the
-crossover spot-validation in a single rental session, with the config and
-raw JSONL committed the same day.
+A through C, the chunked-copy overhead probe (scattered-transfer
+coefficient), the activation-peak-vs-batch-composition measurement, and the
+crossover spot-validation in a single rental session, with the config, raw
+JSONLs, and session log committed the same day. Doc numbers cite the config
+artifact; they are never retyped.
