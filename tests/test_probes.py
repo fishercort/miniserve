@@ -57,3 +57,51 @@ def test_latency_bandwidth_fit_recovers_known_line():
     fit = _fit_latency_bandwidth(points)
     assert abs(fit["latency_ms"] - 2.0) < 1e-6
     assert abs(fit["bandwidth_gb_s"] - 1.0) < 1e-6
+
+
+def test_chunk_overhead_fit_recovers_coefficient():
+    from miniserve.bench.transfer_probe import fit_chunk_overhead
+
+    # t(N) = 5ms + 0.2ms per chunk; at 56 regions: (5+11.2)/(5+0.2) = ~3.115x
+    points = [{"n_chunks": n, "ms": 5.0 + 0.2 * n} for n in (1, 2, 4, 8, 16, 56)]
+    fit = fit_chunk_overhead(points, n_regions=56)
+    assert abs(fit["per_chunk_overhead_ms"] - 0.2) < 1e-9
+    assert abs(fit["base_ms"] - 5.0) < 1e-9
+    assert abs(fit["projected_slowdown"]["factor"] - (16.2 / 5.2)) < 1e-9
+
+
+def test_activation_grid_shape():
+    from miniserve.bench.activation_probe import plan_cells
+
+    cells = plan_cells()
+    kinds = {c["kind"] for c in cells}
+    assert kinds == {"decode", "mixed"}
+    assert sum(1 for c in cells if c["kind"] == "decode") == 9  # 3 batches x 3 ctx
+    assert all("prefill_len" in c for c in cells if c["kind"] == "mixed")
+
+
+def test_spot_validation_contract_logic():
+    from miniserve.bench.spot_validate import evaluate_contract, select_points
+
+    def point(tokens, factor_r, factor_m):
+        return {
+            "tokens": tokens,
+            "predicted_recompute_ms": 100.0,
+            "measured_recompute_ms": 100.0 * factor_r,
+            "predicted_migrate_ms": 50.0,
+            "measured_migrate_ms": 50.0 * factor_m,
+        }
+
+    # two points inside 25%, one wildly out: contract passes at 2 of 3
+    verdict = evaluate_contract([point(10, 1.1, 0.9), point(20, 1.2, 1.2),
+                                 point(40, 2.0, 1.0)])
+    assert verdict["n_passing"] == 2 and verdict["contract_passes"] is True
+    # one good point only: contract fails
+    verdict = evaluate_contract([point(10, 1.0, 1.0), point(20, 1.4, 1.0),
+                                 point(40, 1.0, 1.4)])
+    assert verdict["contract_passes"] is False
+
+    band = {"lo": 15, "hi": 28, "crossover": 20, "hi_clamped": False}
+    assert select_points(band) == [15, 20, 28]
+    clamped = {"lo": 200, "hi": 1 << 20, "crossover": 800, "hi_clamped": True}
+    assert select_points(clamped) == [200, 800, 1600]  # 2x crossover substitutes

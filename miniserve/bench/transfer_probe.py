@@ -143,6 +143,55 @@ def measure_disk_tiers(
     }
 
 
+CHUNK_COUNTS = (1, 2, 4, 8, 16, 32, 56, 64)  # 56 = the target model's regions
+
+
+def fit_chunk_overhead(points: list[dict], n_regions: int = 56) -> dict:
+    """t(N) = base + N * per_chunk_overhead; the projected slowdown at the
+    model's region count is the coefficient that de-optimizes the contiguous
+    tier numbers (plan section 3, scattered-transfer caveat)."""
+    import numpy as np
+
+    x = np.array([p["n_chunks"] for p in points], dtype=float)
+    y = np.array([p["ms"] for p in points], dtype=float)
+    slope, intercept = np.polyfit(x, y, 1)
+    base = max(float(intercept), 1e-9)
+    factor = (base + slope * n_regions) / (base + slope * 1.0)
+    return {
+        "points": points,
+        "per_chunk_overhead_ms": float(slope),
+        "base_ms": base,
+        "projected_slowdown": {"n_regions": n_regions, "factor": float(factor)},
+    }
+
+
+def measure_chunked(
+    device: str,
+    total_bytes: int = 14_680_064,  # a 512-token prefix for the target model
+    counts: tuple = CHUNK_COUNTS,
+    repeats: int = 5,
+    n_regions: int = 56,
+) -> dict | None:
+    """Same bytes, N discrete copies: measures per-transfer overhead directly.
+    Device tiers only; meaningless on pure CPU."""
+    import torch
+
+    if device == "cpu":
+        return None
+    elems_total = total_bytes // 2
+    src = torch.zeros(elems_total, dtype=torch.bfloat16, device=device)
+    points = []
+    for n in counts:
+        chunk = elems_total // n
+        views = [src[i * chunk : (i + 1) * chunk] for i in range(n)]
+        ms = statistics.median(
+            _timed(lambda vs=views: [v.to("cpu") for v in vs], (device,))
+            for _ in range(repeats)
+        )
+        points.append({"n_chunks": n, "ms": ms})
+    return fit_chunk_overhead(points, n_regions=n_regions)
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="cpu")
@@ -162,6 +211,14 @@ def main(argv=None) -> None:
     tiers = {}
     tiers.update(measure_device_tiers(args.device, args.block_bytes, args.repeats))
     tiers.update(measure_disk_tiers(args.disk_path, args.block_bytes, args.repeats))
+    chunked = measure_chunked(args.device, repeats=args.repeats)
+    if chunked:
+        print(
+            f"chunked overhead: {chunked['per_chunk_overhead_ms']:.4f} ms/chunk, "
+            f"projected {chunked['projected_slowdown']['factor']:.2f}x at "
+            f"{chunked['projected_slowdown']['n_regions']} regions",
+            flush=True,
+        )
     for name, t in tiers.items():
         print(
             f"{name}: latency {t['latency_ms']:.3f} ms, "
@@ -178,6 +235,7 @@ def main(argv=None) -> None:
         # numbers, an upper bound on achievable migration bandwidth. The
         # chunked-copy probe on GPU day supplies the overhead coefficient.
         "transfer_measurement": "contiguous",
+        "chunked_overhead": chunked,
         "tiers": tiers,
     }
     path = pathlib.Path(args.out)
