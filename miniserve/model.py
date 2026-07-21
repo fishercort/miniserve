@@ -114,7 +114,7 @@ class PagedModel:
         hf = (
             AutoModelForCausalLM.from_pretrained(
                 name_or_path,
-                torch_dtype=dtype or torch.bfloat16,
+                dtype=dtype or torch.bfloat16,
                 attn_implementation="eager",
             )
             .to(device)

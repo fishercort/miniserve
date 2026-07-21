@@ -1,0 +1,88 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "device": "cpu",
+  "dtype": "torch.float32",
+  "platform": "macOS-26.0.1-arm64-arm-64bit-Mach-O",
+  "graduates_to_cost_model": false,
+  "raw": [
+    {
+      "prompt_tokens": 16,
+      "prefill_ms": 94.74512469023466
+    },
+    {
+      "prompt_tokens": 32,
+      "prefill_ms": 114.28037518635392
+    },
+    {
+      "prompt_tokens": 64,
+      "prefill_ms": 143.91187485307455
+    },
+    {
+      "prompt_tokens": 128,
+      "prefill_ms": 207.06474967300892
+    },
+    {
+      "prompt_tokens": 256,
+      "prefill_ms": 345.4590840265155
+    },
+    {
+      "prompt_tokens": 512,
+      "prefill_ms": 604.4447920285165
+    },
+    {
+      "prompt_tokens": 16,
+      "prefill_ms": 94.7813750244677
+    },
+    {
+      "prompt_tokens": 32,
+      "prefill_ms": 116.9703328050673
+    },
+    {
+      "prompt_tokens": 64,
+      "prefill_ms": 144.45099979639053
+    },
+    {
+      "prompt_tokens": 128,
+      "prefill_ms": 202.3982908576727
+    },
+    {
+      "prompt_tokens": 256,
+      "prefill_ms": 342.59270783513784
+    },
+    {
+      "prompt_tokens": 512,
+      "prefill_ms": 600.8314578793943
+    }
+  ],
+  "lengths": [
+    16,
+    32,
+    64,
+    128,
+    256,
+    512
+  ],
+  "median_prefill_ms": [
+    94.76324985735118,
+    115.62535399571061,
+    144.18143732473254,
+    204.7315202653408,
+    344.02589593082666,
+    602.6381249539554
+  ],
+  "linear": {
+    "b_ms_per_token": 1.0231687622820804,
+    "a_ms": 79.10191165793003,
+    "mean_rel_err": 0.013049334343621004
+  },
+  "quadratic": {
+    "c_ms_per_token2": 7.965112913250531e-06,
+    "b_ms_per_token": 1.0189811169053262,
+    "a_ms": 79.341547905157,
+    "mean_rel_err": 0.0132635446054118
+  },
+  "preferred": "linear",
+  "fit_gate_rel_err": 0.05,
+  "residual_structure": false,
+  "fit_acceptable": true
+}

@@ -1,0 +1,80 @@
+{
+  "device": "cpu",
+  "block_bytes": 458752,
+  "platform": "macOS-26.0.1-arm64-arm-64bit-Mach-O",
+  "filesystem": "apfs",
+  "graduates_to_cost_model": false,
+  "transfer_measurement": "contiguous",
+  "tiers": {
+    "cpu_to_disk": {
+      "latency_ms": 0.6079506423409979,
+      "bandwidth_gb_s": 3.2424602088979366,
+      "points": [
+        {
+          "bytes": 458752,
+          "ms": 0.13733282685279846
+        },
+        {
+          "bytes": 917504,
+          "ms": 0.1816251315176487
+        },
+        {
+          "bytes": 1835008,
+          "ms": 0.5581248551607132
+        },
+        {
+          "bytes": 3670016,
+          "ms": 2.4997908622026443
+        },
+        {
+          "bytes": 7340032,
+          "ms": 4.960458260029554
+        },
+        {
+          "bytes": 14680064,
+          "ms": 4.406124819070101
+        },
+        {
+          "bytes": 29360128,
+          "ms": 9.480499662458897
+        }
+      ],
+      "label": "write_fsync fs=apfs"
+    },
+    "disk_to_cpu": {
+      "latency_ms": 0.0,
+      "bandwidth_gb_s": 21.83205288080998,
+      "points": [
+        {
+          "bytes": 458752,
+          "ms": 0.022875145077705383
+        },
+        {
+          "bytes": 917504,
+          "ms": 0.03349967300891876
+        },
+        {
+          "bytes": 1835008,
+          "ms": 0.050208065658807755
+        },
+        {
+          "bytes": 3670016,
+          "ms": 0.09300000965595245
+        },
+        {
+          "bytes": 7340032,
+          "ms": 0.21975021809339523
+        },
+        {
+          "bytes": 14680064,
+          "ms": 0.45779207721352577
+        },
+        {
+          "bytes": 29360128,
+          "ms": 1.3748747296631336
+        }
+      ],
+      "label": "warm_page_cached fs=apfs"
+    }
+  }
+}
