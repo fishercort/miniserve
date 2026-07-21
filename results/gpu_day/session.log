@@ -1,0 +1,49 @@
+hardware: {"name": "NVIDIA H100 80GB HBM3", "form_factor": "SXM", "driver": "580.105.08", "vram_gb": 79.2}
+== curve A: prefill ==
+prefill fit: preferred=quadratic acceptable=True
+== curve B: decode ==
+batch=1 ctx=256: 23.26 ms
+batch=2 ctx=256: 45.89 ms
+batch=4 ctx=256: 91.23 ms
+batch=8 ctx=256: 182.49 ms
+batch=1 ctx=1024: 23.41 ms
+batch=2 ctx=1024: 46.82 ms
+batch=4 ctx=1024: 93.03 ms
+batch=8 ctx=1024: 186.03 ms
+batch=1 ctx=4096: 25.20 ms
+batch=2 ctx=4096: 50.15 ms
+batch=4 ctx=4096: 100.20 ms
+batch=8 ctx=4096: 200.55 ms
+== curve C: transfers + chunked overhead ==
+chunked overhead: 0.0180 ms/chunk, projected 1.85x at 56 regions
+cuda_to_cpu: latency 0.063 ms, bandwidth 16.03 GB/s (device_interconnect)
+cpu_to_cuda: latency 0.054 ms, bandwidth 15.56 GB/s (device_interconnect)
+cpu_to_disk: latency 1.292 ms, bandwidth 1.12 GB/s (write_fsync fs=ext4)
+disk_to_cpu: latency 0.000 ms, bandwidth 10.96 GB/s (warm_page_cached fs=ext4)
+-> results/gpu_day/transfer.json
+== activation peaks ==
+decode batch=1 ctx=256: peak 5.80 GiB
+decode batch=1 ctx=1024: peak 5.89 GiB
+decode batch=1 ctx=4096: peak 6.03 GiB
+decode batch=4 ctx=256: peak 5.82 GiB
+decode batch=4 ctx=1024: peak 5.93 GiB
+decode batch=4 ctx=4096: peak 6.36 GiB
+decode batch=8 ctx=256: peak 5.88 GiB
+decode batch=8 ctx=1024: peak 6.04 GiB
+decode batch=8 ctx=4096: peak 6.80 GiB
+mixed batch=4 ctx=1024: peak 6.05 GiB
+mixed batch=4 ctx=1024: peak 6.84 GiB
+mixed batch=8 ctx=1024: peak 6.21 GiB
+mixed batch=8 ctx=1024: peak 7.17 GiB
+-> results/gpu_day/activation_peak.json
+== config assembly ==
+cuda_to_cpu: band={'lo': 1, 'hi': 1, 'crossover': 1, 'ratio': 1.25, 'hi_clamped': False}
+cpu_to_cuda: band={'lo': 1, 'hi': 1, 'crossover': 1, 'ratio': 1.25, 'hi_clamped': False}
+cpu_to_disk: band={'lo': 1, 'hi': 4262, 'crossover': 1, 'ratio': 1.25, 'hi_clamped': False}
+disk_to_cpu: band={'lo': 1, 'hi': 1, 'crossover': 1, 'ratio': 1.25, 'hi_clamped': False}
+== spot validation ==
+cpu_to_cuda: band 1..1, 0/3 points in contract, FAIL: revise model
+-> results/gpu_day/spot_validation.json
+
+SAME-DAY COMMIT (plan section 7):
+  git add results/gpu_day && git commit -m 'phase2: GPU day on NVIDIA H100 80GB HBM3 (SXM)' && git push

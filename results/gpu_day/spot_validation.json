@@ -1,0 +1,48 @@
+{
+  "results": [
+    {
+      "tier": "cpu_to_cuda",
+      "band": {
+        "lo": 1,
+        "hi": 1,
+        "crossover": 1,
+        "ratio": 1.25,
+        "hi_clamped": false
+      },
+      "points": [
+        {
+          "tokens": 1,
+          "predicted_recompute_ms": 24.10653842034188,
+          "measured_recompute_ms": 22.816304000002674,
+          "predicted_migrate_ms": 0.05625697844014773,
+          "measured_migrate_ms": 0.022594000029130257,
+          "rel_err_recompute": 0.05654879161581366,
+          "rel_err_migrate": 1.4899078679125464,
+          "ok": false
+        },
+        {
+          "tokens": 1,
+          "predicted_recompute_ms": 24.10653842034188,
+          "measured_recompute_ms": 22.709560000009787,
+          "predicted_migrate_ms": 0.05625697844014773,
+          "measured_migrate_ms": 0.022946999990836048,
+          "rel_err_recompute": 0.06151499281938934,
+          "rel_err_migrate": 1.451604935835365,
+          "ok": false
+        },
+        {
+          "tokens": 1,
+          "predicted_recompute_ms": 24.10653842034188,
+          "measured_recompute_ms": 22.697657000037452,
+          "predicted_migrate_ms": 0.05625697844014773,
+          "measured_migrate_ms": 0.025693999987197458,
+          "rel_err_recompute": 0.062071667586751526,
+          "rel_err_migrate": 1.1894986560356067,
+          "ok": false
+        }
+      ],
+      "n_passing": 0,
+      "contract_passes": false
+    }
+  ]
+}

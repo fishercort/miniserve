@@ -1,0 +1,89 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "device": "cuda",
+  "platform": "Linux-6.8.0-1046-nvidia-x86_64-with-glibc2.39",
+  "cells": [
+    {
+      "kind": "decode",
+      "batch": 1,
+      "context": 256,
+      "peak_bytes": 6228717056
+    },
+    {
+      "kind": "decode",
+      "batch": 1,
+      "context": 1024,
+      "peak_bytes": 6319152640
+    },
+    {
+      "kind": "decode",
+      "batch": 1,
+      "context": 4096,
+      "peak_bytes": 6475571200
+    },
+    {
+      "kind": "decode",
+      "batch": 4,
+      "context": 256,
+      "peak_bytes": 6253025792
+    },
+    {
+      "kind": "decode",
+      "batch": 4,
+      "context": 1024,
+      "peak_bytes": 6369917440
+    },
+    {
+      "kind": "decode",
+      "batch": 4,
+      "context": 4096,
+      "peak_bytes": 6830181376
+    },
+    {
+      "kind": "decode",
+      "batch": 8,
+      "context": 256,
+      "peak_bytes": 6315256320
+    },
+    {
+      "kind": "decode",
+      "batch": 8,
+      "context": 1024,
+      "peak_bytes": 6489643520
+    },
+    {
+      "kind": "decode",
+      "batch": 8,
+      "context": 4096,
+      "peak_bytes": 7302994944
+    },
+    {
+      "kind": "mixed",
+      "batch": 4,
+      "context": 1024,
+      "prefill_len": 512,
+      "peak_bytes": 6494424064
+    },
+    {
+      "kind": "mixed",
+      "batch": 4,
+      "context": 1024,
+      "prefill_len": 2048,
+      "peak_bytes": 7339711488
+    },
+    {
+      "kind": "mixed",
+      "batch": 8,
+      "context": 1024,
+      "prefill_len": 512,
+      "peak_bytes": 6672231424
+    },
+    {
+      "kind": "mixed",
+      "batch": 8,
+      "context": 1024,
+      "prefill_len": 2048,
+      "peak_bytes": 7693868032
+    }
+  ]
+}
