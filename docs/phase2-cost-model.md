@@ -22,6 +22,53 @@ crossover curves, plus a derivation writeup. It grounds the memory hierarchy,
 prefill/decode behavior, and KV layout in numbers rather than assumptions, and
 is consumed directly by the Phase 3 policies and oracle.
 
+## GPU-day verdict (2026-07-21, H100 80GB SXM5)
+
+Ran clean end to end on a single H100 80GB SXM5 (a named target from the
+master plan; no hardware deviation). All curves measured, config emitted
+(results/gpu_day/cost_model.json), same-day committed. Numbers below cite that
+artifact; none are retyped.
+
+Spot-validation contract: FAILED (0 of 3), and the failure is the finding. The
+pre-committed contract (25 percent at 2 of 3 points per tier) fired exactly as
+designed and refused to let a degenerate crossover graduate into Phase 3.
+
+Diagnosis, fully determined from the data: the v1 gather-attention forward has
+a fixed overhead floor of about 24 ms per pass on this hardware. Prefill
+latency is flat at ~23.7 ms from 16 to 512 tokens and only exceeds the floor
+near 2048 tokens (45 ms) and 4096 (129 ms), where the quadratic attention tail
+appears; decode is 23 ms/step for the same reason. This is the Phase 1
+gather-based-attention perf-gap tradeoff, now quantified. Because recompute
+costs at least ~24 ms at any length while migrating a prefix's KV costs
+microseconds, migration wins at 1 token, the crossover band collapses to
+[1, 1], and validation at a single token is pure timing noise (migrate
+predicted 0.056 ms vs measured 0.023 ms). Curve A itself fits well (quadratic,
+2 percent relative error, gate passed); the crossover derived from it is
+degenerate, not the fit.
+
+What this means: the migrate-vs-recompute crossover is instrument-bound, not
+hardware-bound, and does not graduate. A production kernel would have a
+~1-3 ms forward floor, moving the crossover to a real, non-degenerate prefix
+length. The calibrated crossover is therefore deferred to Phase 4 (vLLM real
+kernel), as the plan already contemplated. Phase 3 consumes the cost model
+structurally: recompute cost is swept as a parameter rather than pinned to the
+v1 engine's launch-bound constant, and the joint policy's evict/offload/
+recompute decision is evaluated across that sweep. This also sharpens the
+project's own hypothesis: the recompute-vs-migrate tradeoff only becomes
+interesting when recompute is compute-bound, so the economic policy's decisive
+regime is large prefixes and efficient kernels, not the launch-bound floor.
+
+What does graduate (measured, hardware-real, useful now):
+- Activation-peak curve: 5.8 to 7.2 GiB across the batch/context/composition
+  grid, peaking on a large prefill joining a full decode batch. This is the
+  overhead band MECHANICS.md assumed, now measured.
+- Transfer bandwidths (contiguous, non-pinned; an upper bound the scattered
+  and pinned corrections adjust): cuda->cpu 16.0 GB/s, cpu->cuda 15.6 GB/s,
+  disk write+fsync 1.1 GB/s (ext4), warm page-cached read 11.0 GB/s.
+- Chunked-overhead coefficient: 0.018 ms per chunk, projected 1.85x slowdown
+  at the model's 56 KV regions (the scattered-transfer correction, now a
+  number).
+
 ## Measurement plan
 
 Every protocol decision below is recorded before its script runs. The plan
