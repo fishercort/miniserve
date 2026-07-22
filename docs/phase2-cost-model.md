@@ -69,6 +69,29 @@ What does graduate (measured, hardware-real, useful now):
   at the model's 56 KV regions (the scattered-transfer correction, now a
   number).
 
+## Post material (banked 2026-07-21; drafts after Phase 4)
+
+Preserved frame so the eventual post drafts from intent, not archaeology. This
+is one post, not two: the checkable surprise and the validation discipline are
+the same story.
+
+- The checkable surprise (act one): prefill latency is FLAT for the first ~500
+  tokens. Most people assume prefill scales with prompt length; here an H100
+  spends ~24 ms per forward pass on fixed overhead before length starts to
+  matter (flat 23.7 ms from 16 to 512 tokens; the quadratic tail only appears
+  at 2048+). Same property that made posts 0 and 1 travel: a specific,
+  checkable, mildly counterintuitive fact.
+- The landmine and its resolution: "GPUs have a 24 ms floor" is false and a
+  serving engineer will say so on sight; the honest and stronger framing is
+  "this is what fixed overhead looks like BEFORE optimization, and it is
+  exactly why production engines do all the kernel-fusion and CUDA-graph work."
+  Naive-engine ownership converts the number from an embarrassment into the
+  reason vLLM's kernel work exists.
+- Two-act structure (why it waits for Phase 4): act one is the v1 floor making
+  the crossover degenerate and the pre-registered contract firing; act two is
+  the vLLM-validated real crossover; pre-registration discipline is the
+  through-line. One stronger post later beats one salvage post now.
+
 ## Measurement plan
 
 Every protocol decision below is recorded before its script runs. The plan
